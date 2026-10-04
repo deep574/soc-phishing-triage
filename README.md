@@ -148,8 +148,4 @@ RISK SCORE:    100/100
 
 ---
 
-## 💼 Resume Bullet Points (Copy & Paste)
 
-* *"Designed and automated a Python-based phishing triage engine to parse RFC 822 headers, inspect SPF/DKIM/DMARC verdicts, defang URLs, and extract attachment cryptographic hashes (SHA-256)."*
-* *"Authored an enterprise SOC Phishing Playbook and incident response report (INC-2024-0891) mapping attacks to MITRE ATT&CK techniques (T1566.002, T1056.003) with tenant-wide remediation procedures."*
-* *"Triaged suspicious emails, investigated malicious C2/phishing infrastructure across VirusTotal, URLScan.io, and AbuseIPDB, executing scoping and threat containment via Exchange Online and perimeter firewalls."*
