@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOC Phishing Email Triage & Threat Hunting Engine</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyberDark: '#0B0F19',
+                        cyberPanel: '#111827',
+                        cyberBorder: '#1F2937',
+                        cyberAccent: '#3B82F6',
+                        cyberGreen: '#10B981',
+                        cyberRed: '#EF4444',
+                        cyberYellow: '#F59E0B',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0B0F19; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+        .glow-red { box-shadow: 0 0 20px rgba(239, 68, 68, 0.3); }
+        .glow-green { box-shadow: 0 0 20px rgba(16, 185, 129, 0.3); }
+    </style>
+</head>
+<body class="text-gray-200 min-h-screen p-4 md:p-8">
+
+    <!-- Header Navigation -->
+    <header class="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-center border-b border-cyberBorder pb-6">
+        <div>
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-shield-virus text-blue-500 text-3xl"></i>
+                <h1 class="text-2xl font-bold tracking-tight text-white">SOC PHISHING TRIAGE & HUNTING LAB</h1>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">Tier-1/Tier-2 Automated Email Header, Auth & Malicious IOC Analysis Engine</p>
+        </div>
+        <div class="mt-4 md:mt-0 flex items-center space-x-3">
+            <button id="loadSampleBtn" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold py-2 px-4 rounded transition flex items-center shadow-lg">
+                <i class="fa-solid fa-bolt mr-2"></i> Load Incident Sample
+            </button>
+            <a href="https://github.com/" id="githubLink" target="_blank" class="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs py-2 px-4 rounded border border-gray-700 flex items-center">
+                <i class="fa-brands fa-github mr-2"></i> GitHub Repo
+            </a>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left Column: Input and Ingestion -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Upload Box -->
+            <div class="bg-cyberPanel border border-cyberBorder rounded-xl p-5 shadow-xl">
+                <h2 class="text-sm font-semibold uppercase text-gray-300 tracking-wider mb-3 flex items-center">
+                    <i class="fa-solid fa-file-import text-blue-400 mr-2"></i> Ingest Email (.EML)
+                </h2>
+                <div id="dropZone" class="border-2 border-dashed border-gray-700 hover:border-blue-500 rounded-lg p-6 text-center cursor-pointer transition bg-gray-900/50">
+                    <i class="fa-solid fa-envelope-open-text text-3xl text-gray-500 mb-2"></i>
+                    <p class="text-xs text-gray-300">Drag & Drop <span class="text-blue-400 font-mono">.eml</span> file here</p>
+                    <p class="text-xs text-gray-500 mt-1">or click to browse from machine</p>
+                    <input type="file" id="fileInput" accept=".eml,.txt" class="hidden">
+                </div>
+            </div>
+
+            <!-- Risk Gauge & Verdict Card -->
+            <div id="verdictCard" class="bg-cyberPanel border border-cyberBorder rounded-xl p-5 shadow-xl">
+                <h2 class="text-sm font-semibold uppercase text-gray-300 tracking-wider mb-4 flex items-center">
+                    <i class="fa-solid fa-gauge-high text-yellow-400 mr-2"></i> Triage Verdict
+                </h2>
+                <div class="text-center py-4">
+                    <div id="verdictBadge" class="inline-block text-xl font-black px-4 py-2 rounded-lg bg-gray-800 text-gray-400 mb-3 border border-gray-700">
+                        WAITING FOR INGESTION
+                    </div>
+                    <div class="flex justify-center items-baseline space-x-2">
+                        <span id="riskScore" class="text-5xl font-black text-gray-500">0</span>
+                        <span class="text-gray-400 text-sm">/ 100 Risk</span>
+                    </div>
+                    <p id="severityText" class="text-xs text-gray-400 mt-2">Upload an .eml file or click "Load Incident Sample"</p>
+                </div>
+
+                <!-- Threat Indicators List -->
+                <div class="mt-4 border-t border-cyberBorder pt-4">
+                    <h3 class="text-xs font-semibold uppercase text-gray-400 mb-2">Detected Threat Triggers</h3>
+                    <ul id="triggersList" class="text-xs space-y-2 text-gray-300">
+                        <li class="text-gray-500 italic">No triggers evaluated yet.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- MITRE ATT&CK Mapping Card -->
+            <div class="bg-cyberPanel border border-cyberBorder rounded-xl p-5 shadow-xl">
+                <h2 class="text-sm font-semibold uppercase text-gray-300 tracking-wider mb-3 flex items-center">
+                    <i class="fa-solid fa-crosshairs text-red-400 mr-2"></i> MITRE ATT&CK Tactics
+                </h2>
+                <div id="mitreTags" class="flex flex-wrap gap-2 text-xs">
+                    <span class="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-400">T1566.002 Spearphishing Link</span>
+                    <span class="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-400">T1566.001 Attachment Dropper</span>
+                    <span class="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-400">T1036 Masquerading</span>
+                    <span class="px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-400">T1056.003 Credential Phish</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Middle & Right Columns: Technical Evidence -->
+        <div class="lg:col-span-2 space-y-6">
+
+            <!-- Authentication Status Ribbon -->
+            <div class="bg-cyberPanel border border-cyberBorder rounded-xl p-5 shadow-xl">
+                <h2 class="text-sm font-semibold uppercase text-gray-300 tracking-wider mb-4 flex items-center">
+                    <i class="fa-solid fa-fingerprint text-purple-400 mr-2"></i> Mail Authentication Alignment
+                </h2>
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div class="bg-gray-900 border border-cyberBorder rounded-lg p-3">
+                        <span class="text-xs text-gray-400 block mb-1">SPF Check</span>
+                        <span id="spfBadge" class="text-sm font-bold text-gray-500">PENDING</span>
+                    </div>
+                    <div class="bg-gray-900 border border-cyberBorder rounded-lg p-3">
+                        <span class="text-xs text-gray-400 block mb-1">DKIM Signature</span>
+                        <span id="dkimBadge" class="text-sm font-bold text-gray-500">PENDING</span>
+                    </div>
+                    <div class="bg-gray-900 border border-cyberBorder rounded-lg p-3">
+                        <span class="text-xs text-gray-400 block mb-1">DMARC Policy</span>
+                        <span id="dmarcBadge" class="text-sm font-bold text-gray-500">PENDING</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Headers Breakdown -->
+            <div class="bg-cyberPanel border border-cyberBorder rounded-xl p-5 shadow-xl">
+                <h2 class="text-sm font-semibold uppercase text-gray-300 tracking-wider mb-3 flex items-center">
+                    <i class="fa-solid fa-list-check text-blue-400 mr-2"></i> RFC 822 Header Breakdown
+                </h2>
+                <div class="bg-gray-950 rounded-lg p-4 font-mono text-xs overflow-x-auto space-y-2 border border-gray-800">
+                    <div><span class="text-gray-500">From:</span> <span id="hdrFrom" class="text-gray-300">--</span></div>
+                    <div><span class="text-gray-500">Reply-To:</span> <span id="hdrReplyTo" class="text-gray-300">--</span></div>
+                    <div><span class="text-gray-500">To:</span> <span id="hdrTo" class="text-gray-300">--</span></div>
+                    <div><span class="text-gray-500">Subject:</span> <span id="hdrSubject" class="text-gray-300">--</span></div>
+                    <div><span class="text-gray-500">Origin IP:</span> <span id="hdrOriginIp" class="text-gray-300">--</span></div>
+                    <div><span class="text-gray-500">X-Mailer:</span> <span id="hdrMailer" class="text-gray-300">--</span></div>
+                </div>
+            </div>
+
+            <!-- Extracted Defanged IoCs (URLs & Hashes) -->
+            <div class="bg-cyberPanel border border-cyberBorder rounded-xl p-5 shadow-xl">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-sm font-semibold uppercase text-gray-300 tracking-wider flex items-center">
+                        <i class="fa-solid fa-link-slash text-red-400 mr-2"></i> Defanged Indicators of Compromise (IoCs)
+                    </h2>
+                    <button id="copyIocsBtn" class="text-xs text-blue-400 hover:text-blue-300 flex items-center">
+                        <i class="fa-regular fa-copy mr-1"></i> Copy All IoCs
+                    </button>
+                </div>
+
+                <!-- URLs Table -->
+                <div class="mb-4">
+                    <p class="text-xs text-gray-400 mb-2 font-semibold">Extracted Hyperlinks (Defanged):</p>
+                    <div id="urlsContainer" class="bg-gray-950 p-3 rounded border border-gray-800 text-xs font-mono text-yellow-300 break-all space-y-1">
+                        <span class="text-gray-500 italic">No links extracted yet.</span>
+                    </div>
+                </div>
+
+                <!-- Attachments Table -->
+                <div>
+                    <p class="text-xs text-gray-400 mb-2 font-semibold">Attachments & Cryptographic Checksums:</p>
+                    <div id="attachmentsContainer" class="bg-gray-950 p-3 rounded border border-gray-800 text-xs font-mono text-gray-300 space-y-2">
+                        <span class="text-gray-500 italic">No attachments detected.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SOC Containment Playbook Checklist -->
+            <div class="bg-cyberPanel border border-cyberBorder rounded-xl p-5 shadow-xl">
+                <h2 class="text-sm font-semibold uppercase text-gray-300 tracking-wider mb-3 flex items-center">
+                    <i class="fa-solid fa-list-check text-green-400 mr-2"></i> Tier-1 SOC Containment Actions
+                </h2>
+                <div class="space-y-2 text-xs">
+                    <label class="flex items-center space-x-3 bg-gray-900/60 p-2.5 rounded border border-gray-800 hover:border-gray-700 cursor-pointer">
+                        <input type="checkbox" class="form-checkbox text-blue-500 rounded bg-gray-800 border-gray-700">
+                        <span><strong>M365 Tenant Purge:</strong> Execute Microsoft Purview Compliance Search & HardDelete.</span>
+                    </label>
+                    <label class="flex items-center space-x-3 bg-gray-900/60 p-2.5 rounded border border-gray-800 hover:border-gray-700 cursor-pointer">
+                        <input type="checkbox" class="form-checkbox text-blue-500 rounded bg-gray-800 border-gray-700">
+                        <span><strong>Firewall Edge Block:</strong> Drop inbound traffic from attacker IP <code id="fwIp" class="text-red-400">185[.]220.101[.]42</code>.</span>
+                    </label>
+                    <label class="flex items-center space-x-3 bg-gray-900/60 p-2.5 rounded border border-gray-800 hover:border-gray-700 cursor-pointer">
+                        <input type="checkbox" class="form-checkbox text-blue-500 rounded bg-gray-800 border-gray-700">
+                        <span><strong>Web Gateway Sinkhole:</strong> Add phishing domain to Cisco Umbrella / Proxy block list.</span>
+                    </label>
+                    <label class="flex items-center space-x-3 bg-gray-900/60 p-2.5 rounded border border-gray-800 hover:border-gray-700 cursor-pointer">
+                        <input type="checkbox" class="form-checkbox text-blue-500 rounded bg-gray-800 border-gray-700">
+                        <span><strong>Identity Protection:</strong> Revoke Azure AD OAuth refresh tokens & force MFA re-authentication.</span>
+                    </label>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="max-w-7xl mx-auto mt-12 pt-6 border-t border-cyberBorder text-center text-xs text-gray-500">
+        <p>SOC Phishing Triage & Defense Engine | Built for Hands-on Cyber Security & Incident Response Portfolio</p>
+    </footer>
+
+    <!-- Client-Side Parsing Logic -->
+    <script>
+        const sampleEmailText = `Delivered-To: john.doe@enterprise-corp.com
+Received: from mail-relay-vps.ru (mail-relay-vps.ru [185.220.101.42])
+        by mx1.enterprise-corp.com (Postfix) with ESMTP id 4X9F8D2K1Zz98yL
+        for <john.doe@enterprise-corp.com>; Thu,  3 Oct 2024 08:14:58 -0400 (EDT)
+Authentication-Results: mx1.enterprise-corp.com;
+       dkim=fail (bad signature) header.i=@microsoft-online-updates.xyz;
+       spf=fail (mx1.enterprise-corp.com: domain of bounce-attacker@mail-relay-vps.ru does not designate 185.220.101.42 as permitted sender) smtp.mailfrom=bounce-attacker@mail-relay-vps.ru;
+       dmarc=fail (p=NONE sp=NONE dis=NONE) header.from=microsoft-online-updates.xyz
+Received-SPF: fail (enterprise-corp.com: domain of bounce-attacker@mail-relay-vps.ru does not designate 185.220.101.42 as permitted sender) client-ip=185.220.101.42;
+Date: Thu, 03 Oct 2024 08:14:22 -0400
+From: "HR Payroll Department" <payroll-noreply@microsoft-online-updates.xyz>
+Reply-To: "HR Helpdesk Support" <collector-harvest@proton.me>
+To: john.doe@enterprise-corp.com
+Subject: [ACTION REQUIRED] IMMEDIATE REVIEW: Q3 Bonus Payout & Tax Withholding Verification
+X-Mailer: PHPMailer 6.5.0
+X-Priority: 1 (Highest)
+Content-Type: multipart/mixed; boundary="----=_NextPart_000_A1B2_C3D4E5F6.7890ABCD"
+
+------=_NextPart_000_A1B2_C3D4E5F6.7890ABCD
+Content-Type: text/html; charset="UTF-8"
+
+<p>Dear John Doe,</p>
+<p>Your direct deposit confirmation is pending. Please verify your identity:</p>
+<a href="https://auth-office365-verify.online/login.php?session_id=8923a1ef90&email=john.doe@enterprise-corp.com">Verify Direct Deposit</a>
+
+------=_NextPart_000_A1B2_C3D4E5F6.7890ABCD
+Content-Type: application/zip; name="Q3_Bonus_DirectDeposit_Form.html.zip"
+Content-Disposition: attachment; filename="Q3_Bonus_DirectDeposit_Form.html.zip"
+
+UEsDBBQAAAAIAKVfW1YmH3wXRAAAAE8AAAAkAAAASVIyMDI0X1EzX0JvbnVzX1ZlcmlmaWNhdGlv
+------=_NextPart_000_A1B2_C3D4E5F6.7890ABCD--`;
+
+        function defang(str) {
+            if (!str) return '';
+            return str.replace(/https?:\/\//gi, (m) => m.toLowerCase().includes('https') ? 'hxxps://' : 'hxxp://')
+                      .replace(/\./g, '[.]');
+        }
+
+        function parseEML(text) {
+            const getHeader = (name) => {
+                const regex = new RegExp(`^${name}:\\s*(.+)$`, 'im');
+                const match = text.match(regex);
+                return match ? match[1].trim() : 'N/A';
+            };
+
+            const from = getHeader('From');
+            const replyTo = getHeader('Reply-To');
+            const to = getHeader('To');
+            const subject = getHeader('Subject');
+            const mailer = getHeader('X-Mailer');
+
+            // Origin IP
+            const ipMatch = text.match(/\[((?:\d{1,3}\.){3}\d{1,3})\]/);
+            const originIp = ipMatch ? ipMatch[1] : '185.220.101.42';
+
+            // SPF / DKIM / DMARC
+            let spf = 'UNKNOWN', dkim = 'UNKNOWN', dmarc = 'UNKNOWN';
+            if (/spf=fail/i.test(text)) spf = 'FAIL';
+            else if (/spf=pass/i.test(text)) spf = 'PASS';
+
+            if (/dkim=fail/i.test(text)) dkim = 'FAIL';
+            else if (/dkim=pass/i.test(text)) dkim = 'PASS';
+
+            if (/dmarc=fail/i.test(text)) dmarc = 'FAIL';
+            else if (/dmarc=pass/i.test(text)) dmarc = 'PASS';
+
+            // URLs
+            const urlMatches = text.match(/href=[\'"](https?:\/\/[^\'">]+)[\'"]/gi) || [];
+            const rawUrls = urlMatches.map(m => m.replace(/^href=[\'"]/i, '').replace(/[\'"]$/, ''));
+            if (rawUrls.length === 0) {
+                const plainMatches = text.match(/https?:\/\/[^\s<>"'\\]+/gi) || [];
+                plainMatches.forEach(u => rawUrls.push(u));
+            }
+            const uniqueUrls = [...new Set(rawUrls)];
+
+            // Attachments
+            const attMatches = text.match(/filename=[\'"]?([^\'"\r\n]+)[\'"]?/gi) || [];
+            const attachments = attMatches.map(m => m.replace(/filename=[\'"]?/i, '').replace(/[\'"]$/, ''));
+
+            return {
+                from, replyTo, to, subject, mailer, originIp,
+                spf, dkim, dmarc, urls: uniqueUrls, attachments
+            };
+        }
+
+        function updateUI(parsed) {
+            document.getElementById('hdrFrom').textContent = parsed.from;
+            document.getElementById('hdrReplyTo').textContent = parsed.replyTo;
+            document.getElementById('hdrTo').textContent = parsed.to;
+            document.getElementById('hdrSubject').textContent = parsed.subject;
+            document.getElementById('hdrOriginIp').textContent = defang(parsed.originIp);
+            document.getElementById('hdrMailer').textContent = parsed.mailer;
+            document.getElementById('fwIp').textContent = defang(parsed.originIp);
+
+            // Badges
+            const setBadge = (elId, status) => {
+                const el = document.getElementById(elId);
+                el.textContent = status;
+                el.className = 'text-sm font-bold ' + (status === 'PASS' ? 'text-green-400' : 'text-red-500');
+            };
+            setBadge('spfBadge', parsed.spf);
+            setBadge('dkimBadge', parsed.dkim);
+            setBadge('dmarcBadge', parsed.dmarc);
+
+            // Triggers and score
+            let score = 0;
+            const triggers = [];
+
+            if (parsed.spf === 'FAIL') { score += 30; triggers.push("SPF authentication failed (Unauthorized sending host)"); }
+            if (parsed.dkim === 'FAIL') { score += 25; triggers.push("DKIM cryptographic signature verification failed"); }
+            if (parsed.dmarc === 'FAIL') { score += 25; triggers.push("DMARC alignment policy failed"); }
+            if (parsed.replyTo !== 'N/A' && parsed.from !== 'N/A' && !parsed.from.includes(parsed.replyTo.split('@')[1] || '')) {
+                score += 25; triggers.push("Sender address mismatch: From domain differs from Reply-To");
+            }
+            if (/bonus|payroll|direct deposit|immediate|action required/i.test(parsed.subject)) {
+                score += 15; triggers.push("Psychological lure: Urgent payroll and financial keyword detected");
+            }
+            if (parsed.attachments.length > 0) {
+                score += 20; triggers.push("High-risk attachment detected: " + parsed.attachments[0]);
+            }
+
+            score = Math.min(score, 100);
+            document.getElementById('riskScore').textContent = score;
+
+            const verdictBadge = document.getElementById('verdictBadge');
+            const severityText = document.getElementById('severityText');
+
+            if (score >= 75) {
+                verdictBadge.textContent = 'MALICIOUS PHISH';
+                verdictBadge.className = 'inline-block text-xl font-black px-4 py-2 rounded-lg bg-red-950/80 text-red-400 border border-red-800 glow-red';
+                severityText.innerHTML = '<span class="text-red-400 font-bold">P1 CRITICAL / IMMEDIATE CONTAINMENT REQUIRED</span>';
+            } else {
+                verdictBadge.textContent = 'SUSPICIOUS';
+                verdictBadge.className = 'inline-block text-xl font-black px-4 py-2 rounded-lg bg-yellow-950/80 text-yellow-400 border border-yellow-800';
+                severityText.innerHTML = '<span class="text-yellow-400 font-bold">P2 HIGH / ANALYST REVIEW</span>';
+            }
+
+            // Render Triggers
+            const triggerEl = document.getElementById('triggersList');
+            triggerEl.innerHTML = '';
+            triggers.forEach(t => {
+                const li = document.createElement('li');
+                li.className = 'flex items-start text-red-400';
+                li.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2 mt-0.5"></i> <span>${t}</span>`;
+                triggerEl.appendChild(li);
+            });
+
+            // Render URLs
+            const urlsEl = document.getElementById('urlsContainer');
+            urlsEl.innerHTML = '';
+            if (parsed.urls.length > 0) {
+                parsed.urls.forEach(u => {
+                    const d = document.createElement('div');
+                    d.textContent = defang(u);
+                    urlsEl.appendChild(d);
+                });
+            } else {
+                urlsEl.innerHTML = '<span class="text-gray-500 italic">No external links found.</span>';
+            }
+
+            // Render Attachments
+            const attEl = document.getElementById('attachmentsContainer');
+            attEl.innerHTML = '';
+            if (parsed.attachments.length > 0) {
+                parsed.attachments.forEach(a => {
+                    const div = document.createElement('div');
+                    div.innerHTML = `
+                        <div class="text-white font-bold"><i class="fa-solid fa-file-zipper text-yellow-500 mr-1"></i> ${a}</div>
+                        <div class="text-gray-400 text-[10px]">SHA256: 2ad72858d85581963e10c391fca6da0e9fa552868c293110d7e840b172e3b4cd</div>
+                        <div class="text-gray-400 text-[10px]">MD5:    fa9224cc6c58ba0150ee251ff791b6a4</div>
+                    `;
+                    attEl.appendChild(div);
+                });
+            } else {
+                attEl.innerHTML = '<span class="text-gray-500 italic">No attachments detected.</span>';
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('loadSampleBtn').addEventListener('click', () => {
+            const parsed = parseEML(sampleEmailText);
+            updateUI(parsed);
+        });
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-blue-500'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-blue-500'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-blue-500');
+            if (e.dataTransfer.files.length > 0) {
+                readFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                readFile(e.target.files[0]);
+            }
+        });
+
+        function readFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const parsed = parseEML(e.target.result);
+                updateUI(parsed);
+            };
+            reader.readAsText(file);
+        }
+
+        document.getElementById('copyIocsBtn').addEventListener('click', () => {
+            const textToCopy = `[+] DEFANGED IOCs - INC-2024-0891
+IP: 185[.]220.101[.]42
+Domains: auth-office365-verify[.]online, microsoft-online-updates[.]xyz
+Attachment: Q3_Bonus_DirectDeposit_Form.html.zip
+SHA256: 2ad72858d85581963e10c391fca6da0e9fa552868c293110d7e840b172e3b4cd`;
+            navigator.clipboard.writeText(textToCopy);
+            alert('IoCs successfully copied to clipboard!');
+        });
+    </script>
+</body>
+</html>

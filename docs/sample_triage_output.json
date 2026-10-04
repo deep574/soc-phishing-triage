@@ -1,0 +1,72 @@
+{
+  "analysis_metadata": {
+    "target_file": "/Users/gnanadeep/.gemini/antigravity/scratch/soc-portfolio/03-Phishing-Email-Triage/samples/urgent_payroll_phish.eml",
+    "verdict": "MALICIOUS (High Confidence Phish)",
+    "severity": "HIGH / P1",
+    "risk_score": 100,
+    "triggers": [
+      "SPF verification failed (Sender IP not permitted for domain)",
+      "DKIM signature validation failed or forged",
+      "DMARC alignment failed",
+      "Header mismatch: From domain (microsoft-online-updates.xyz) differs from Reply-To (proton.me)",
+      "High urgency headers detected (X-Priority: 1 / High)",
+      "Psychological urgency keywords detected: immediate review, action required, bonus payout",
+      "Suspicious external TLD found in embedded URL: hxxps://auth-office365-verify[.]online/login[.]php?session_id=8923a1ef90&email=john[.]doe@enterprise-corp[.]com",
+      "High-risk attachment extension detected: Q3_Bonus_DirectDeposit_Form.html.zip"
+    ]
+  },
+  "email_headers": {
+    "From": "HR Payroll Department <payroll-noreply@microsoft-online-updates.xyz>",
+    "To": "john.doe@enterprise-corp.com",
+    "Subject": "[ACTION REQUIRED] IMMEDIATE REVIEW: Q3 Bonus Payout & Tax Withholding Verification",
+    "Date": "Thu, 03 Oct 2024 08:14:22 -0400",
+    "Reply-To": "HR Helpdesk Support <collector-harvest@proton.me>",
+    "Return-Path": "",
+    "Message-ID": "<20241003081422.981240182@mail-relay-vps.ru>",
+    "X-Mailer": "PHPMailer 6.5.0 (https://github.com/PHPMailer/PHPMailer)",
+    "X-Priority": "1 (Highest)",
+    "Importance": "High"
+  },
+  "network_telemetry": {
+    "origin_ip": "185.220.101.42",
+    "defanged_origin_ip": "185[.]220.101[.]42",
+    "total_hops": 2,
+    "authentication": {
+      "spf": "FAIL",
+      "dkim": "FAIL",
+      "dmarc": "FAIL",
+      "raw": [
+        "mx1.enterprise-corp.com;       dkim=fail (bad signature) header.i=@microsoft-online-updates.xyz;       spf=fail (mx1.enterprise-corp.com: domain of bounce-attacker@mail-relay-vps.ru does not designate 185.220.101.42 as permitted sender) smtp.mailfrom=bounce-attacker@mail-relay-vps.ru;       dmarc=fail (p=NONE sp=NONE dis=NONE) header.from=microsoft-online-updates.xyz"
+      ]
+    }
+  },
+  "indicators_of_compromise": {
+    "sender_address": "HR Payroll Department <payroll-noreply@microsoft-online-updates.xyz>",
+    "reply_to": "HR Helpdesk Support <collector-harvest@proton.me>",
+    "defanged_urls": [
+      "hxxps://auth-office365-verify[.]online/login[.]php?session_id=8923a1ef90&email=john[.]doe@enterprise-corp[.]com"
+    ],
+    "raw_urls": [
+      "https://auth-office365-verify.online/login.php?session_id=8923a1ef90&email=john.doe@enterprise-corp.com"
+    ],
+    "attachments": [
+      {
+        "filename": "Q3_Bonus_DirectDeposit_Form.html.zip",
+        "content_type": "application/zip",
+        "size_bytes": 287,
+        "hashes": {
+          "md5": "fa9224cc6c58ba0150ee251ff791b6a4",
+          "sha1": "653b828148be4fbcfdfd79404f0800a977eaf7eb",
+          "sha256": "2ad72858d85581963e10c391fca6da0e9fa552868c293110d7e840b172e3b4cd"
+        }
+      }
+    ]
+  },
+  "recommended_soc_actions": [
+    "Perimeter Firewall: Block inbound traffic from originating IP 185[.]220.101[.]42",
+    "Email Gateway (SEG): Add sender domain/address to global blocklist",
+    "Microsoft 365 Defender: Execute message trace and soft-delete/purge identical Subject/Message-ID across all tenant mailboxes",
+    "Proxy / DNS: Block domain resolution for extracted malicious URLs on Secure Web Gateway (SWG)",
+    "Identity / IAM: Check Azure AD / Okta sign-in logs for target user; enforce immediate password reset & revoke active OAuth refresh tokens if clicked"
+  ]
+}
